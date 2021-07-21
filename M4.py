@@ -28,7 +28,7 @@ def shadow_m4_estimation(rho_hat_lst, na):
     )  # a triple are the same
     sum3 = contract("aaaa", res)  # all four
     res_sum = sum0 - sum1 + 2 * sum2 - 6 * sum3 + sum11
-    return float(res_sum / (m * (m - 1) * (m - 2) * (m - 3)))
+    return float(res_sum.real / (m * (m - 1) * (m - 2) * (m - 3)))
 
 
 def random_m4_estimation(rho, na, NuA, NuB, Nm, device, scheme, N_average, N_iid, qU):
@@ -46,7 +46,7 @@ def random_m4_estimation(rho, na, NuA, NuB, Nm, device, scheme, N_average, N_iid
         UBi_lst = (
             get_u(1, None, na * N_iid * N_average * NuA)
             .to(device)
-            .view(nb, N_iid, N_average, NuA, 2, 2)
+            .view(nb, N_iid, N_average, NuB, 2, 2)
         )
         UA_lst = UAi_lst[0]
         for i in range(1, na):
@@ -66,45 +66,29 @@ def random_m4_estimation(rho, na, NuA, NuB, Nm, device, scheme, N_average, N_iid
         )
         UB_lst = (
             get_u(nb, qU, N_iid * N_average * NuA)
-            .view(N_iid, N_average, NuA, nb ** 2, nb ** 2)
+            .view(N_iid, N_average, NuB, nb ** 2, nb ** 2)
             .to(device)
         )
-    prob_ls = th.empty([N_iid, N_average, NuA, NuB, dim], dtype=th.cfloat)
+    U = contract("orijk,orlmn->oriljmkn", UA_lst, UB_lst).view(
+            [N_iid, N_average, NuA, NuB, dim, dim]
+        )
+    prob_ls = contract("orijab,bc,orijac->orija", U, rho, th.conj(U)).real
     if Nm != -1:
-        U = contract("orijk,orlmn->oriljmkn", UA_lst, UB_lst).view(
-            [N_iid, N_average, NuA, NuB, dim, dim]
-        )
-        meas_pre = (
-            contract("orijab,bc,orijac->orija", U, rho, th.conj(U))
-            .real.view(N_iid * N_average * NuA * NuB, dim)
-            .cumsum(1)
-            .cpu()
-            .numpy()
-        )
+        meas_cdf = prob_ls.view(N_iid * N_average * NuA * NuB, dim).cumsum(1).cpu().numpy()
         randchoice = np.random.rand(Nm, N_iid * N_average * NuA * NuB, 1)
-        choices = np.concatenate(
-            [(randchoice[i] < meas_pre).argmax(axis=1) for i in range(Nm)]
-        )
-        prob_ls = (
-            th.tensor(
-                sp.sparse.coo_matrix(
-                    (
-                        np.ones(N_iid * N_average * NuA * NuB * Nm) / Nm,
-                        (np.zeros(N_iid * N_average * NuA * NuB * Nm), choices),
-                    ),
-                    shape=(1, N_iid * N_average * NuA * NuB * dim),
-                ).toarray()[0],
-                dtype=th.cfloat,
-            )
-            .view(N_iid, N_average, NuA, NuB, dim)
-            .to(device)
-        )
-    else:
-        U = contract("orijk,orlmn->oriljmkn", UA_lst, UB_lst).view(
-            [N_iid, N_average, NuA, NuB, dim, dim]
-        )
-        prob_ls = contract("orijab,bc,orijac->orija", U, rho, th.conj(U))
-    prob_ls = prob_ls.to(device)
+        choices = [(randchoice[i] < meas_cdf).argmax(axis=1)+dim*np.arange(N_iid * N_average * NuA * NuB) for i in range(Nm)]
+        prob_lsi=th.sparse_coo_tensor(
+                    th.tensor([choices[0]]),
+                    th.ones(N_iid * N_average * NuA * NuB),
+                    (N_iid * N_average * NuA * NuB*dim,)
+                )
+        for i in range(1,Nm):
+            prob_lsi+=th.sparse_coo_tensor(
+                    th.tensor([choices[i]]),
+                    th.ones(N_iid * N_average * NuA * NuB) ,
+                    (N_iid * N_average * NuA * NuB*dim,)
+                )
+        prob_ls=prob_lsi.to(device).to_dense().view(N_iid, N_average, NuA, NuB, dim).type(th.cfloat)/Nm
     hm1 = hamming_distance_table(qubit_num, nb, na, scheme).to(device)
     hm2 = hamming_distance_table(qubit_num, 0, nb, scheme).to(device)
     sum0 = contract(
@@ -159,11 +143,13 @@ def shadow_m4_variance(rho, na, m, N_iid, device, scheme, qU):
     rho = rho.to(device)
     r = realignment(rho, na)
     real_value = th.trace(th.mm(th.mm(r, th.conj(r).T), th.mm(r, th.conj(r).T)))
-
+    sum=0
     res = 0
     for _ in range(N_iid):
         predict = shadow_m4_estimation(shadow_estimator(rho, device, scheme, m, qU), na)
+        sum+=predict
         res += (predict - real_value) ** 2
+    print(sum/N_iid)
     return float(res.real / N_iid)
 
 

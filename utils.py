@@ -4,9 +4,22 @@ from qiskit.quantum_info import random_clifford
 import scipy as sp
 import torch as th
 from opt_einsum import contract
+import time
+import multiprocessing as mp
+import matplotlib as mpl
+from scipy.optimize import leastsq
+import numpy as np
+
+mpl.use("Agg")
+import matplotlib.pyplot as plt
 
 hmdict = {}
 
+randomU1 = th.load("./data/random1")
+randomU2 = th.load("./data/random2")
+time_start=time.time()
+proc_lst = []
+has_activate=np.zeros(11)
 
 def hamming_distance(
     a, b, n, lenth, scheme
@@ -121,35 +134,35 @@ def shadow_estimator(rho, device, scheme, m, qU):
     if scheme == "g":
         meas_lst = (
             th.sparse_coo_tensor(
+                th.tensor([np.arange(0, m), result, result]),
                 th.ones(m),
-                th.tensor([th.range(0, m - 1), result, result]),
                 (m, dim, dim),
             )
             .to(device)
-            .to_dense()
+            .to_dense().type(th.cfloat)
         )
         rho_hat_lst = (dim + 1) * contract(
             "oba,obc,ocd->oad", th.conj(U_lst), meas_lst, U_lst
         ) - th.eye(dim, dtype=th.cfloat).to(device)
     else:
         meas_lst0 = th.sparse_coo_tensor(
+            th.tensor([np.arange(0, m), result % 2, result % 2]),
             th.ones(m),
-            th.tensor([th.range(0, m - 1), result % 2, result % 2]),
             (m, 2, 2),
-        ).to_dense()
+        ).to(device).to_dense().type(th.cfloat)
         rho_hat_lst = 3 * contract(
             "oba,obc,ocd->oad", th.conj(U_lst_local[0]), meas_lst0, U_lst_local[0]
         ) - th.eye(2, dtype=th.cfloat).to(device)
         for i in range(1, qubit_num):
             meas_lsti = th.sparse_coo_tensor(
+                th.tensor([np.arange(0, m ), (result >> i) % 2, (result >> i) % 2]),
                 th.ones(m),
-                th.tensor([th.range(0, m - 1), (result >> i) % 2, (result >> i) % 2]),
                 (m, 2, 2),
-            ).to_dense()
+            ).to(device).to_dense().type(th.cfloat)
             rho_hat_lsti = 3 * contract(
                 "oba,obc,ocd->oad", th.conj(U_lst_local[i]), meas_lsti, U_lst_local[i]
             ) - th.eye(2, dtype=th.cfloat).to(device)
-            rho_hat_lst = contract("abc,ade->abdce", rho_hat_lst, rho_hat_lsti).view(
+            rho_hat_lst = contract("abc,ade->abdce",rho_hat_lsti,rho_hat_lst).view(
                 m, 2 ** (i + 1), 2 ** (i + 1)
             )
     return rho_hat_lst
@@ -160,9 +173,6 @@ def gen_u(n, qU):
         qU.put(th.tensor(random_clifford(n).to_matrix(), dtype=th.cfloat))
 
 
-randomU1 = th.load("random1")
-randomU2 = th.load("random2")
-
 
 def get_u(n, qU, num):
     if n == 2:
@@ -170,7 +180,46 @@ def get_u(n, qU, num):
     if n == 1:
         return randomU1[np.random.randint(0, 24, size=num)]
     else:
-        U_lst = th.empty(num, n ** 2, n ** 2)
-        for i in range(num):
-            U_lst[i] = qU[n].get()
+        if has_activate[n]:
+            U_lst = th.empty(num, n ** 2, n ** 2,dtype=th.cfloat)
+            for i in range(num):
+                U_lst[i] = qU[n].get()
+        else:
+            has_activate[n]=1
+            for i in range(10):
+                proc = mp.Process(target=gen_u, args=(n, qU[n]))  # Must assign n
+                proc_lst.append(proc)
+                proc.start()
+            U_lst = th.empty(num, n ** 2, n ** 2,dtype=th.cfloat)
+            for i in range(num):
+                U_lst[i] = qU[n].get()
     return U_lst
+
+
+def kill():
+    print("time is:"+str(time.time() - time_start))
+    for proc in proc_lst:
+        proc.terminate()
+
+def func(p, x):
+    k, b = p
+    return k * x + b
+
+
+def error(p, x, y):
+    return func(p, x) - y
+
+
+def draw(y, x):
+    y_log = np.asarray([math.log(var, 2) for var in y])
+    plt.figure()
+    x_log = np.asarray([math.log(u, 2) for u in x])
+    p0 = [1, 1]
+    print(leastsq(error, p0, args=(x_log, y_log)))
+    plt.scatter(x_log, y_log)
+    plt.plot(x_log, y_log, label=" ")
+
+    plt.xlabel(" ")
+    plt.ylabel(" ")
+    plt.legend()
+    plt.savefig("test.png")
