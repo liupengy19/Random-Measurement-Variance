@@ -8,7 +8,6 @@ import time
 import multiprocessing as mp
 import matplotlib as mpl
 from scipy.optimize import leastsq
-import numpy as np
 
 mpl.use("Agg")
 import matplotlib.pyplot as plt
@@ -128,14 +127,16 @@ def shadow_estimator(rho, device, scheme, m, qU):
             )
     prob_pdf = contract("oab,bc,oac->oa", U_lst, rho, th.conj(U_lst)).real
     meas_lst = th.empty([m, dim, dim])
-    prob_cdf = prob_pdf.cumsum(1).cpu().numpy()
-    randchoice = th.rand(m, 1)
-    result = th.tensor((randchoice < prob_cdf).argmax(axis=1), dtype=th.int32)
+    prob_cdf = prob_pdf.cumsum(1)
+    randchoice = th.cuda.FloatTensor(m, 1).uniform_()
+    result = (randchoice < prob_cdf).type(th.int8).argmax(axis=1)
+    meas_range=th.arange(0, m).to(device)
+    ones_range=th.ones(m).to(device)
     if scheme == "g":
         meas_lst = (
             th.sparse_coo_tensor(
-                th.tensor([np.arange(0, m), result, result]),
-                th.ones(m),
+                th.stack([meas_range, result, result]),
+                ones_range,
                 (m, dim, dim),
             )
             .to(device)
@@ -146,8 +147,8 @@ def shadow_estimator(rho, device, scheme, m, qU):
         ) - th.eye(dim, dtype=th.cfloat).to(device)
     else:
         meas_lst0 = th.sparse_coo_tensor(
-            th.tensor([np.arange(0, m), result % 2, result % 2]),
-            th.ones(m),
+            th.stack([meas_range, result % 2, result % 2]),
+            ones_range,
             (m, 2, 2),
         ).to(device).to_dense().type(th.cfloat)
         rho_hat_lst = 3 * contract(
@@ -155,8 +156,8 @@ def shadow_estimator(rho, device, scheme, m, qU):
         ) - th.eye(2, dtype=th.cfloat).to(device)
         for i in range(1, qubit_num):
             meas_lsti = th.sparse_coo_tensor(
-                th.tensor([np.arange(0, m ), (result >> i) % 2, (result >> i) % 2]),
-                th.ones(m),
+                th.stack([meas_range, (result >> i) % 2, (result >> i) % 2]),
+                ones_range,
                 (m, 2, 2),
             ).to(device).to_dense().type(th.cfloat)
             rho_hat_lsti = 3 * contract(
@@ -187,7 +188,7 @@ def get_u(n, qU, num):
                 U_lst[i] = qU[n].get()
         else:
             has_activate[n]=1
-            for i in range(10):
+            for i in range(3*n):
                 proc = mp.Process(target=gen_u, args=(n, qU[n]))  # Must assign n
                 proc_lst.append(proc)
                 proc.start()
