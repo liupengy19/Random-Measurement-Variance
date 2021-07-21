@@ -14,16 +14,16 @@ mpl.use("Agg")
 import matplotlib.pyplot as plt
 
 hmdict = {}
-
-randomU1 = th.load("./data/random1")
-randomU2 = th.load("./data/random2")
+th.cuda.set_device(0)
+randomU1 = th.load("./data/random1").cuda()
+randomU2 = th.load("./data/random2").cuda()
 time_start=time.time()
 proc_lst = []
 has_activate=np.zeros(11)
 
 def hamming_distance(
     a, b, n, lenth, scheme
-):  # a,b are numbers, give the hamming distance between digit n and n+m-1, shceme is either global of local
+):  #the hamming distance between digit n and n+m-1, shceme is either global of local
     x = ((a ^ b) >> n) % (1 << lenth)
     if scheme == "g":
         return int(x != 0)
@@ -129,7 +129,7 @@ def shadow_estimator(rho, device, scheme, m, qU):
     prob_pdf = contract("oab,bc,oac->oa", U_lst, rho, th.conj(U_lst)).real
     meas_lst = th.empty([m, dim, dim])
     prob_cdf = prob_pdf.cumsum(1).cpu().numpy()
-    randchoice = np.random.rand(m, 1)
+    randchoice = th.rand(m, 1)
     result = th.tensor((randchoice < prob_cdf).argmax(axis=1), dtype=th.int32)
     if scheme == "g":
         meas_lst = (
@@ -173,15 +173,16 @@ def gen_u(n, qU):
         qU.put(th.tensor(random_clifford(n).to_matrix(), dtype=th.cfloat))
 
 
-
 def get_u(n, qU, num):
     if n == 2:
-        return randomU2[np.random.randint(0, 11240, size=num)]
+        randchoice=th.cuda.FloatTensor(num).uniform_()*11240
+        return randomU2[randchoice.type(th.int64)]
     if n == 1:
-        return randomU1[np.random.randint(0, 24, size=num)]
+        randchoice=th.cuda.FloatTensor(num).uniform_()*24
+        return randomU1[randchoice.type(th.int64)]
     else:
         if has_activate[n]:
-            U_lst = th.empty(num, n ** 2, n ** 2,dtype=th.cfloat)
+            U_lst = th.empty(num, 2**n, 2**n,dtype=th.cfloat)
             for i in range(num):
                 U_lst[i] = qU[n].get()
         else:
@@ -190,13 +191,13 @@ def get_u(n, qU, num):
                 proc = mp.Process(target=gen_u, args=(n, qU[n]))  # Must assign n
                 proc_lst.append(proc)
                 proc.start()
-            U_lst = th.empty(num, n ** 2, n ** 2,dtype=th.cfloat)
+            U_lst = th.empty(num, 2**n, 2**n,dtype=th.cfloat)
             for i in range(num):
                 U_lst[i] = qU[n].get()
     return U_lst
 
 
-def kill():
+def terminate():
     print("time is:"+str(time.time() - time_start))
     for proc in proc_lst:
         proc.terminate()
@@ -218,7 +219,18 @@ def draw(y, x):
     print(leastsq(error, p0, args=(x_log, y_log)))
     plt.scatter(x_log, y_log)
     plt.plot(x_log, y_log, label=" ")
+    plt.xlabel(" ")
+    plt.ylabel(" ")
+    plt.legend()
+    plt.savefig("test.png")
 
+def draw_nolog(y, x):
+    y_log = np.asarray([math.log(var, 2) for var in y])
+    plt.figure()
+    p0 = [1, 1]
+    print(leastsq(error, p0, args=(x, y_log)))
+    plt.scatter(x, y_log)
+    plt.plot(x, y_log, label=" ")
     plt.xlabel(" ")
     plt.ylabel(" ")
     plt.legend()
