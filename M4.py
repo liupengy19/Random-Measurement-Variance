@@ -5,9 +5,9 @@ def shadow_m4_estimation(rho_hat_lst, na):
     r = th.stack([realignment(rho_hat, na) for rho_hat in rho_hat_lst])
     r_dg = th.conj(contract("ijk->ikj", r))
     m = len(rho_hat_lst)
-    res = contract(
-        "iab,jbc,kcd,lda->ijkl", r, r_dg, r, r_dg
-    ).type(th.cdouble)  # use inclusion–exclusion principle to eliminate expressions like if(i==j)
+    res = contract("iab,jbc,kcd,lda->ijkl", r, r_dg, r, r_dg).type(
+        th.cdouble
+    )  # use inclusion–exclusion principle to eliminate expressions like if(i==j)
     sum0 = contract("ijkl->", res)  # summation
     sum11 = (
         contract("aabb", res) + contract("abab", res) + contract("abba", res)
@@ -59,35 +59,47 @@ def random_m4_estimation(rho, na, NuA, NuB, Nm, device, scheme, N_average, N_iid
     else:
         UA_lst = (
             get_u(na, qU, N_iid * N_average * NuA)
-            .view(N_iid, N_average, NuA, 2**na , 2**na )
+            .view(N_iid, N_average, NuA, 2 ** na, 2 ** na)
             .to(device)
         )
         UB_lst = (
             get_u(nb, qU, N_iid * N_average * NuB)
-            .view(N_iid, N_average, NuB, 2**nb , 2**nb)
+            .view(N_iid, N_average, NuB, 2 ** nb, 2 ** nb)
             .to(device)
         )
     U = contract("orijk,orlmn->oriljmkn", UA_lst, UB_lst).view(
-            [N_iid, N_average, NuA, NuB, dim, dim]
-        )
+        [N_iid, N_average, NuA, NuB, dim, dim]
+    )
     prob_ls = contract("orijab,bc,orijac->orija", U, rho, th.conj(U)).real
     if Nm != -1:
         meas_cdf = prob_ls.view(N_iid * N_average * NuA * NuB, dim).cumsum(1)
-        randchoice=th.cuda.FloatTensor(Nm, N_iid * N_average * NuA * NuB, 1).uniform_()
-        choices = [(randchoice[i] < meas_cdf).type(th.int8).argmax(axis=1)+dim*th.arange(N_iid * N_average * NuA * NuB).to(device) for i in range(Nm)]
-        prob_lsi=th.sparse_coo_tensor(
-                    choices[0].view(1,-1),
-                    th.ones(N_iid * N_average * NuA * NuB).to(device),
-                    (N_iid * N_average * NuA * NuB*dim,)
-                )
-        for i in range(1,Nm):
-            prob_lsi+=th.sparse_coo_tensor(
-                    choices[i].view(1,-1),
-                    th.ones(N_iid * N_average * NuA * NuB).to(device) ,
-                    (N_iid * N_average * NuA * NuB*dim,)
-                )
-        prob_ls=prob_lsi.to(device).to_dense().view(N_iid, N_average, NuA, NuB, dim).type(th.cfloat)/Nm
-    prob_ls=prob_ls.type(th.cfloat)
+        randchoice = th.cuda.FloatTensor(
+            Nm, N_iid * N_average * NuA * NuB, 1
+        ).uniform_()
+        choices = [
+            (randchoice[i] < meas_cdf).type(th.int8).argmax(axis=1)
+            + dim * th.arange(N_iid * N_average * NuA * NuB).to(device)
+            for i in range(Nm)
+        ]
+        prob_lsi = th.sparse_coo_tensor(
+            choices[0].view(1, -1),
+            th.ones(N_iid * N_average * NuA * NuB).to(device),
+            (N_iid * N_average * NuA * NuB * dim,),
+        )
+        for i in range(1, Nm):
+            prob_lsi += th.sparse_coo_tensor(
+                choices[i].view(1, -1),
+                th.ones(N_iid * N_average * NuA * NuB).to(device),
+                (N_iid * N_average * NuA * NuB * dim,),
+            )
+        prob_ls = (
+            prob_lsi.to(device)
+            .to_dense()
+            .view(N_iid, N_average, NuA, NuB, dim)
+            .type(th.cfloat)
+            / Nm
+        )
+    prob_ls = prob_ls.type(th.cfloat)
     hm1 = hamming_distance_table(qubit_num, nb, na, scheme).to(device)
     hm2 = hamming_distance_table(qubit_num, 0, nb, scheme).to(device)
     sum0 = contract(
@@ -151,7 +163,7 @@ def shadow_m4_variance(rho, na, m, N_iid, device, scheme, qU):
     return float(res.real / N_iid)
 
 
-def random_m4_variance(rho, na, NuA, NuB, Nm, N_iid, device, scheme, qU,N_average=1):
+def random_m4_variance(rho, na, NuA, NuB, Nm, N_iid, device, scheme, qU, N_average=1):
     rho = rho.to(device)
     r = realignment(rho, na)
     real_value = th.trace(th.mm(th.mm(r, th.conj(r).T), th.mm(r, th.conj(r).T)))

@@ -16,13 +16,14 @@ hmdict = {}
 th.cuda.set_device(0)
 randomU1 = th.load("./data/random1").cuda()
 randomU2 = th.load("./data/random2").cuda()
-time_start=time.time()
+time_start = time.time()
 proc_lst = []
-has_activate=np.zeros(11)
+has_activate = np.zeros(11)
+
 
 def hamming_distance(
     a, b, n, lenth, scheme
-):  #the hamming distance between digit n and n+m-1, shceme is either global of local
+):  # the hamming distance between digit n and n+m-1, shceme is either global of local
     x = ((a ^ b) >> n) % (1 << lenth)
     if scheme == "g":
         return int(x != 0)
@@ -130,8 +131,8 @@ def shadow_estimator(rho, device, scheme, m, qU):
     prob_cdf = prob_pdf.cumsum(1)
     randchoice = th.cuda.FloatTensor(m, 1).uniform_()
     result = (randchoice < prob_cdf).type(th.int8).argmax(axis=1)
-    meas_range=th.arange(0, m).to(device)
-    ones_range=th.ones(m).to(device)
+    meas_range = th.arange(0, m).to(device)
+    ones_range = th.ones(m).to(device)
     if scheme == "g":
         meas_lst = (
             th.sparse_coo_tensor(
@@ -140,30 +141,41 @@ def shadow_estimator(rho, device, scheme, m, qU):
                 (m, dim, dim),
             )
             .to(device)
-            .to_dense().type(th.cfloat)
+            .to_dense()
+            .type(th.cfloat)
         )
         rho_hat_lst = (dim + 1) * contract(
             "oba,obc,ocd->oad", th.conj(U_lst), meas_lst, U_lst
         ) - th.eye(dim, dtype=th.cfloat).to(device)
     else:
-        meas_lst0 = th.sparse_coo_tensor(
-            th.stack([meas_range, result % 2, result % 2]),
-            ones_range,
-            (m, 2, 2),
-        ).to(device).to_dense().type(th.cfloat)
+        meas_lst0 = (
+            th.sparse_coo_tensor(
+                th.stack([meas_range, result % 2, result % 2]),
+                ones_range,
+                (m, 2, 2),
+            )
+            .to(device)
+            .to_dense()
+            .type(th.cfloat)
+        )
         rho_hat_lst = 3 * contract(
             "oba,obc,ocd->oad", th.conj(U_lst_local[0]), meas_lst0, U_lst_local[0]
         ) - th.eye(2, dtype=th.cfloat).to(device)
         for i in range(1, qubit_num):
-            meas_lsti = th.sparse_coo_tensor(
-                th.stack([meas_range, (result >> i) % 2, (result >> i) % 2]),
-                ones_range,
-                (m, 2, 2),
-            ).to(device).to_dense().type(th.cfloat)
+            meas_lsti = (
+                th.sparse_coo_tensor(
+                    th.stack([meas_range, (result >> i) % 2, (result >> i) % 2]),
+                    ones_range,
+                    (m, 2, 2),
+                )
+                .to(device)
+                .to_dense()
+                .type(th.cfloat)
+            )
             rho_hat_lsti = 3 * contract(
                 "oba,obc,ocd->oad", th.conj(U_lst_local[i]), meas_lsti, U_lst_local[i]
             ) - th.eye(2, dtype=th.cfloat).to(device)
-            rho_hat_lst = contract("abc,ade->abdce",rho_hat_lsti,rho_hat_lst).view(
+            rho_hat_lst = contract("abc,ade->abdce", rho_hat_lsti, rho_hat_lst).view(
                 m, 2 ** (i + 1), 2 ** (i + 1)
             )
     return rho_hat_lst
@@ -176,32 +188,33 @@ def gen_u(n, qU):
 
 def get_u(n, qU, num):
     if n == 2:
-        randchoice=th.cuda.FloatTensor(num).uniform_()*11240
+        randchoice = th.cuda.FloatTensor(num).uniform_() * 11240
         return randomU2[randchoice.type(th.int64)]
     if n == 1:
-        randchoice=th.cuda.FloatTensor(num).uniform_()*24
+        randchoice = th.cuda.FloatTensor(num).uniform_() * 24
         return randomU1[randchoice.type(th.int64)]
     else:
         if has_activate[n]:
-            U_lst = th.empty(num, 2**n, 2**n,dtype=th.cfloat)
+            U_lst = th.empty(num, 2 ** n, 2 ** n, dtype=th.cfloat)
             for i in range(num):
                 U_lst[i] = qU[n].get()
         else:
-            has_activate[n]=1
+            has_activate[n] = 1
             for i in range(30):
                 proc = mp.Process(target=gen_u, args=(n, qU[n]))  # Must assign n
                 proc_lst.append(proc)
                 proc.start()
-            U_lst = th.empty(num, 2**n, 2**n,dtype=th.cfloat)
+            U_lst = th.empty(num, 2 ** n, 2 ** n, dtype=th.cfloat)
             for i in range(num):
                 U_lst[i] = qU[n].get()
     return U_lst
 
 
 def terminate():
-    print("time is:"+str(time.time() - time_start))
+    print("time is:" + str(time.time() - time_start))
     for proc in proc_lst:
         proc.terminate()
+
 
 def func(p, x):
     k, b = p
@@ -220,18 +233,6 @@ def draw(y, x):
     print(leastsq(error, p0, args=(x_log, y_log)))
     plt.scatter(x_log, y_log)
     plt.plot(x_log, y_log, label=" ")
-    plt.xlabel(" ")
-    plt.ylabel(" ")
-    plt.legend()
-    plt.savefig("test.png")
-
-def draw_nolog(y, x):
-    y_log = np.asarray([math.log(var, 2) for var in y])
-    plt.figure()
-    p0 = [1, 1]
-    print(leastsq(error, p0, args=(x, y_log)))
-    plt.scatter(x, y_log)
-    plt.plot(x, y_log, label=" ")
     plt.xlabel(" ")
     plt.ylabel(" ")
     plt.legend()
