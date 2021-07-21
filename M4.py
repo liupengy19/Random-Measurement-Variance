@@ -7,7 +7,7 @@ def shadow_m4_estimation(rho_hat_lst, na):
     m = len(rho_hat_lst)
     res = contract(
         "iab,jbc,kcd,lda->ijkl", r, r_dg, r, r_dg
-    )  # use inclusion–exclusion principle to eliminate expressions like if(i==j)
+    ).type(th.cdouble)  # use inclusion–exclusion principle to eliminate expressions like if(i==j)
     sum0 = contract("ijkl->", res)  # summation
     sum11 = (
         contract("aabb", res) + contract("abab", res) + contract("abba", res)

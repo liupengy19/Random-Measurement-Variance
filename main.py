@@ -63,7 +63,7 @@ def run_lr_W4_Nu20_M1_100_Na1():
         reslist[m-1]+= random_m4_variance(noisy_W(4, 0), na=2, NuA=20, NuB=20, Nm=m, N_iid=2000,  device=device, scheme="l", qU=qU)
     th.save(th.tensor(reslist), "./output/lr_W4_Nu20_M1_100_Na1")
 
-reslist = np.zeros(8)
+reslist = np.zeros(9)
 #! plot1
 def run_lr_W2_9_Nu3_M10_Na1(): 
     for time in range(1000):
@@ -75,17 +75,26 @@ def run_gr_W2_9_Nu3_M10_Na1():
         for n in range(2,10):
             reslist[n-2]+= random_m4_variance(noisy_W(n, 0), na=n//2, NuA=3, NuB=3, Nm=10, N_iid=1,  device=device, scheme="g", qU=qU)/1000
     th.save(th.tensor(reslist), "./output/gr_W2_9_Nu3_M10_Na1")
-def run_ls_W2_9_M90_Na1(): 
-    for time in range(1000):
+def run_ls_W2_9_M60_Na1(): 
+    for time in range(100):
         for n in range(2,10):
-            reslist[n-2]+= shadow_m4_variance(noisy_W(n, 0), na=n//2, m=60, N_iid=1, device=device, scheme="l", qU=qU)/1000
-    th.save(th.tensor(reslist), "./output/ls_W2_9_M90_Na1")
-def run_gs_W2_9_M90_Na1(): 
-    for time in range(1000):
+            reslist[n-2]+= shadow_m4_variance(noisy_W(n, 0), na=n//2, m=60, N_iid=1, device=device, scheme="l", qU=qU)/100
+    th.save(th.tensor(reslist), "./output/ls_W2_9_M60_Na1")
+def run_gs_W2_9_M60_Na1(): 
+    for time in range(10):
         for n in range(2,10):
-            reslist[n-2]+= shadow_m4_variance(noisy_W(n, 0), na=n//2, m=60, N_iid=1, device=device, scheme="g", qU=qU)/1000
-    th.save(th.tensor(reslist), "./output/gs_W2_9_M90_Na1")
+            reslist[n-2]+= shadow_m4_variance(noisy_W(n, 0), na=n//2, m=60, N_iid=1, device=device, scheme="g", qU=qU)/10
+    th.save(th.tensor(reslist), "./output/gs_W2_9_M60_Na1")
+#! plot2
+def run_gs_W4_M10_90_Na1(): 
+    for n in range(10,100,10):
+        reslist[n//10-1]+= shadow_m4_variance(noisy_W(4, 0), na=2, m=n, N_iid=200, device=device, scheme="g", qU=qU)
+    th.save(th.tensor(reslist), "./output/gs_W4_M10_90_Na1")
+def run_ls_W4_M10_90_Na1(): 
+    for n in range(10,100,10):
+        reslist[n//10-1]+= shadow_m4_variance(noisy_W(4, 0), na=2, m=n, N_iid=500, device=device, scheme="l", qU=qU)
+    th.save(th.tensor(reslist), "./output/ls_W4_M10_90_Na1")
 if __name__ == "__main__":
-    run_ls_W2_9_M90_Na1()
+    run_gs_W4_M10_90_Na1()
     terminate()
-    draw_nolog(reslist, range(1,9))
+    draw_nolog(reslist, range(1,10))

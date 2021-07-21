@@ -188,7 +188,7 @@ def get_u(n, qU, num):
                 U_lst[i] = qU[n].get()
         else:
             has_activate[n]=1
-            for i in range(3*n):
+            for i in range(30):
                 proc = mp.Process(target=gen_u, args=(n, qU[n]))  # Must assign n
                 proc_lst.append(proc)
                 proc.start()
