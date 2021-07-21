@@ -48,7 +48,7 @@ def hamming_distance_table(num_qubit, n, lenth, scheme):
     return hm1
 
 
-def GHZ_state(n):  # generate GHZ state, n stands for qubit number
+def GHZ_state(n):
     col = [0, 0, 2 ** n - 1, 2 ** n - 1]
     row = [0, 2 ** n - 1, 0, 2 ** n - 1]
     data = [1 / 2, 1 / 2, 1 / 2, 1 / 2]
@@ -105,29 +105,53 @@ def shadow_estimator(rho, device, scheme, m, qU):
     dim = len(rho)
     qubit_num = int(math.log(len(rho), 2))
     if scheme == "g":
-        U_lst = get_u(qubit_num,qU,m).to(device)
+        U_lst = get_u(qubit_num, qU, m).to(device)
     else:
-        U_lst_local = get_u(1,None,m*qubit_num).view(qubit_num,m,2,2).to(device)
-        U_lst=U_lst_local[0]
-        for i in range(1,qubit_num):
-            U_lst=contract("abc,ade->abdce",U_lst_local[i],U_lst).view(m,2**(i+1),2**(i+1))
+        U_lst_local = get_u(1, None, m * qubit_num).view(qubit_num, m, 2, 2).to(device)
+        U_lst = U_lst_local[0]
+        for i in range(1, qubit_num):
+            U_lst = contract("abc,ade->abdce", U_lst_local[i], U_lst).view(
+                m, 2 ** (i + 1), 2 ** (i + 1)
+            )
     prob_pdf = contract("oab,bc,oac->oa", U_lst, rho, th.conj(U_lst)).real
     meas_lst = th.empty([m, dim, dim])
     prob_cdf = prob_pdf.cumsum(1).cpu().numpy()
     randchoice = np.random.rand(m, 1)
-    result=th.tensor((randchoice < prob_cdf).argmax(axis=1),dtype=th.int32)
+    result = th.tensor((randchoice < prob_cdf).argmax(axis=1), dtype=th.int32)
     if scheme == "g":
-        meas_lst = th.sparse_coo_tensor(th.ones(m), th.tensor([th.range(0,m-1),result,result]), (m,dim,dim)).to(device).to_dense()
+        meas_lst = (
+            th.sparse_coo_tensor(
+                th.ones(m),
+                th.tensor([th.range(0, m - 1), result, result]),
+                (m, dim, dim),
+            )
+            .to(device)
+            .to_dense()
+        )
         rho_hat_lst = (dim + 1) * contract(
             "oba,obc,ocd->oad", th.conj(U_lst), meas_lst, U_lst
         ) - th.eye(dim, dtype=th.cfloat).to(device)
     else:
-        meas_lst0 = th.sparse_coo_tensor(th.ones(m), th.tensor([th.range(0,m-1),result%2,result%2]), (m,2,2)).to_dense()
-        rho_hat_lst = 3 * contract("oba,obc,ocd->oad", th.conj(U_lst_local[0]), meas_lst0, U_lst_local[0]) - th.eye(2, dtype=th.cfloat).to(device)
-        for i in range(1,qubit_num):
-            meas_lsti = th.sparse_coo_tensor(th.ones(m), th.tensor([th.range(0,m-1),(result>>i)%2,(result>>i)%2]), (m,2,2)).to_dense()
-            rho_hat_lsti = 3 * contract("oba,obc,ocd->oad", th.conj(U_lst_local[i]), meas_lst, U_lst_local[i]) - th.eye(2, dtype=th.cfloat).to(device)
-            rho_hat_lst=contract("abc,ade->abdce",rho_hat_lst,rho_hat_lsti).view(m,2**(i+1),2**(i+1))
+        meas_lst0 = th.sparse_coo_tensor(
+            th.ones(m),
+            th.tensor([th.range(0, m - 1), result % 2, result % 2]),
+            (m, 2, 2),
+        ).to_dense()
+        rho_hat_lst = 3 * contract(
+            "oba,obc,ocd->oad", th.conj(U_lst_local[0]), meas_lst0, U_lst_local[0]
+        ) - th.eye(2, dtype=th.cfloat).to(device)
+        for i in range(1, qubit_num):
+            meas_lsti = th.sparse_coo_tensor(
+                th.ones(m),
+                th.tensor([th.range(0, m - 1), (result >> i) % 2, (result >> i) % 2]),
+                (m, 2, 2),
+            ).to_dense()
+            rho_hat_lsti = 3 * contract(
+                "oba,obc,ocd->oad", th.conj(U_lst_local[i]), meas_lsti, U_lst_local[i]
+            ) - th.eye(2, dtype=th.cfloat).to(device)
+            rho_hat_lst = contract("abc,ade->abdce", rho_hat_lst, rho_hat_lsti).view(
+                m, 2 ** (i + 1), 2 ** (i + 1)
+            )
     return rho_hat_lst
 
 
@@ -135,15 +159,18 @@ def gen_u(n, qU):
     while True:
         qU.put(th.tensor(random_clifford(n).to_matrix(), dtype=th.cfloat))
 
-randomU1=th.load("random1")
-randomU2=th.load("random2")
-def get_u(n,qU,num):
-    if(n==2):
-        return randomU2[np.random.randint(0, 11240,size=num)]
-    if(n==1):
-        return randomU1[np.random.randint(0, 24,size=num)]
+
+randomU1 = th.load("random1")
+randomU2 = th.load("random2")
+
+
+def get_u(n, qU, num):
+    if n == 2:
+        return randomU2[np.random.randint(0, 11240, size=num)]
+    if n == 1:
+        return randomU1[np.random.randint(0, 24, size=num)]
     else:
-        U_lst=th.empty(num,n**2,n**2)
+        U_lst = th.empty(num, n ** 2, n ** 2)
         for i in range(num):
-            U_lst[i]=qU[n].get()
+            U_lst[i] = qU[n].get()
     return U_lst

@@ -31,24 +31,44 @@ def shadow_m4_estimation(rho_hat_lst, na):
     return float(res_sum / (m * (m - 1) * (m - 2) * (m - 3)))
 
 
-def random_m4_estimation(rho, na, NuA, NuB, Nm, device, scheme, N_average, N_iid, qU): 
+def random_m4_estimation(rho, na, NuA, NuB, Nm, device, scheme, N_average, N_iid, qU):
     dim = len(rho)
     qubit_num = int(math.log(dim, 2))
     nb = qubit_num - na
     UA_lst = th.empty([N_iid, N_average, NuA, 2 ** na, 2 ** na], dtype=th.cfloat)
     UB_lst = th.empty([N_iid, N_average, NuB, 2 ** nb, 2 ** nb], dtype=th.cfloat)
     if scheme == "l":
-        UAi_lst = get_u(1, None,na*N_iid*N_average*NuA).to(device).view(na,N_iid,N_average,NuA,2,2)
-        UBi_lst = get_u(1, None,na*N_iid*N_average*NuA).to(device).view(nb,N_iid,N_average,NuA,2,2)
-        UA_lst=UAi_lst[0]
-        for i in range(1,na):
-            UA_lst=contract("abcde,abcgf->abcdgef",UAi_lst[i],UA_lst).view(N_iid,N_average,NuA,2**(i+1),2**(i+1))
-        UB_lst=UBi_lst[0]
-        for i in range(1,nb):
-            UB_lst=contract("abcde,abcgf->abcdgef",UBi_lst[i],UB_lst).view(N_iid,N_average,NuB,2**(i+1),2**(i+1))
+        UAi_lst = (
+            get_u(1, None, na * N_iid * N_average * NuA)
+            .to(device)
+            .view(na, N_iid, N_average, NuA, 2, 2)
+        )
+        UBi_lst = (
+            get_u(1, None, na * N_iid * N_average * NuA)
+            .to(device)
+            .view(nb, N_iid, N_average, NuA, 2, 2)
+        )
+        UA_lst = UAi_lst[0]
+        for i in range(1, na):
+            UA_lst = contract("abcde,abcgf->abcdgef", UAi_lst[i], UA_lst).view(
+                N_iid, N_average, NuA, 2 ** (i + 1), 2 ** (i + 1)
+            )
+        UB_lst = UBi_lst[0]
+        for i in range(1, nb):
+            UB_lst = contract("abcde,abcgf->abcdgef", UBi_lst[i], UB_lst).view(
+                N_iid, N_average, NuB, 2 ** (i + 1), 2 ** (i + 1)
+            )
     else:
-        UA_lst = get_u(na, qU,N_iid*N_average*NuA).view(N_iid,N_average,NuA,na**2,na**2).to(device)
-        UB_lst = get_u(nb, qU,N_iid*N_average*NuA).view(N_iid,N_average,NuA,nb**2,nb**2).to(device)
+        UA_lst = (
+            get_u(na, qU, N_iid * N_average * NuA)
+            .view(N_iid, N_average, NuA, na ** 2, na ** 2)
+            .to(device)
+        )
+        UB_lst = (
+            get_u(nb, qU, N_iid * N_average * NuA)
+            .view(N_iid, N_average, NuA, nb ** 2, nb ** 2)
+            .to(device)
+        )
     prob_ls = th.empty([N_iid, N_average, NuA, NuB, dim], dtype=th.cfloat)
     if Nm != -1:
         U = contract("orijk,orlmn->oriljmkn", UA_lst, UB_lst).view(
