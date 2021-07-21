@@ -104,55 +104,30 @@ def realignment(rho, na):
 def shadow_estimator(rho, device, scheme, m, qU):
     dim = len(rho)
     qubit_num = int(math.log(len(rho), 2))
-    U_lst = th.empty([m, dim, dim], dtype=th.cfloat)
     if scheme == "g":
-        U_lst = get_u(qubit_num,qU,m)
+        U_lst = get_u(qubit_num,qU,m).to(device)
     else:
-        U_lst_local = get_u(1,None,m*qubit_num)
-        U_lst_local.to(device)
-        #!contract
-    U_lst.to(device)
-    prob_lst = abs(contract("oab,bc,oac->oa", U_lst, rho, th.conj(U_lst)).real)
-    prob_lst_norm = prob_lst.sum(1) ** (-1)
-    prob_lst = contract("ij,i->ij", prob_lst, prob_lst_norm).cpu().numpy()
+        U_lst_local = get_u(1,None,m*qubit_num).view(qubit_num,m,2,2).to(device)
+        U_lst=U_lst_local[0]
+        for i in range(1,qubit_num):
+            U_lst=contract("abc,ade->abdce",U_lst_local[i],U_lst).view(m,2**(i+1),2**(i+1))
+    prob_pdf = contract("oab,bc,oac->oa", U_lst, rho, th.conj(U_lst)).real
     meas_lst = th.empty([m, dim, dim])
+    prob_cdf = prob_pdf.cumsum(1).cpu().numpy()
+    randchoice = np.random.rand(m, 1)
+    result=th.tensor((randchoice < prob_cdf).argmax(axis=1),dtype=th.int32)
     if scheme == "g":
-        #! vectorize better
-        for i in range(m):
-            measurement_res = np.random.choice(np.arange(0, dim), p=prob_lst[i])
-            meas_lst[i] = th.tensor(
-                sp.sparse.coo_matrix(
-                    ([1], ([measurement_res], [measurement_res])), shape=(dim, dim)
-                ).toarray(),
-                dtype=th.cfloat,
-            ).to(device)
+        meas_lst = th.sparse_coo_tensor(th.ones(m), th.tensor([th.range(0,m-1),result,result]), (m,dim,dim)).to(device).to_dense()
         rho_hat_lst = (dim + 1) * contract(
             "oba,obc,ocd->oad", th.conj(U_lst), meas_lst, U_lst
         ) - th.eye(dim, dtype=th.cfloat).to(device)
     else:
-        rho_hat_lst = th.empty([m, dim, dim], dtype=th.cfloat)
-        #!vectorize
-        for i in range(m):
-            rho_hat = th.tensor([1], dtype=th.cfloat)
-            measurement_res = list(
-                np.binary_repr(
-                    np.random.choice(np.arange(0, dim), p=prob_lst[i]), width=qubit_num
-                )
-            )
-            measurement_res.reverse()
-            i0 = th.tensor([[1, 0], [0, 0]], dtype=th.cfloat).to(device)
-            i1 = th.tensor([[0, 0], [0, 1]], dtype=th.cfloat).to(device)
-            for j in range(qubit_num):
-                if measurement_res[j] == "0":
-                    rho_hat_i = 3 * th.mm(
-                        th.conj(U_lst_local[i][j]).T, th.mm(i0, U_lst_local[i][j]),
-                    ) - th.eye(2).to(device)
-                else:
-                    rho_hat_i = 3 * th.mm(
-                        th.conj(U_lst_local[i][j]).T, th.mm(i1, U_lst_local[i][j]),
-                    ) - th.eye(2).to(device)
-                rho_hat = th.kron(rho_hat, rho_hat_i)
-            rho_hat_lst[i] = rho_hat
+        meas_lst0 = th.sparse_coo_tensor(th.ones(m), th.tensor([th.range(0,m-1),result%2,result%2]), (m,2,2)).to_dense()
+        rho_hat_lst = 3 * contract("oba,obc,ocd->oad", th.conj(U_lst_local[0]), meas_lst0, U_lst_local[0]) - th.eye(2, dtype=th.cfloat).to(device)
+        for i in range(1,qubit_num):
+            meas_lsti = th.sparse_coo_tensor(th.ones(m), th.tensor([th.range(0,m-1),(result>>i)%2,(result>>i)%2]), (m,2,2)).to_dense()
+            rho_hat_lsti = 3 * contract("oba,obc,ocd->oad", th.conj(U_lst_local[i]), meas_lst, U_lst_local[i]) - th.eye(2, dtype=th.cfloat).to(device)
+            rho_hat_lst=contract("abc,ade->abdce",rho_hat_lst,rho_hat_lsti).view(m,2**(i+1),2**(i+1))
     return rho_hat_lst
 
 
