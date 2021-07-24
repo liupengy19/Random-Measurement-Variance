@@ -5,14 +5,25 @@ def shadow_m4_estimation(rho_hat_lst, na):
     r = th.stack([realignment(rho_hat, na) for rho_hat in rho_hat_lst])
     r_dg = th.conj(contract("ijk->ikj", r))
     m = len(rho_hat_lst)
+    dim=len(rho_hat_lst[0])
     sum0 = contract(
         "iab,jbc,kcd,lda->", r, r_dg, r, r_dg
     )  # use inclusion–exclusion principle to eliminate expressions like if(i==j)
-    sum11 = (
+
+    if dim<1000:
+        sum11 = (
+            contract("iab,ibc,jcd,jda->", r, r_dg, r, r_dg)
+            + contract("iab,jbc,jcd,ida->", r, r_dg, r, r_dg)
+            + contract("iab,jbc,icd,jda->", r, r_dg, r, r_dg)
+        )  # two pairs of indexes are the same
+    else:
+        sum11 = (
         contract("iab,ibc,jcd,jda->", r, r_dg, r, r_dg)
         + contract("iab,jbc,jcd,ida->", r, r_dg, r, r_dg)
-        + contract("iab,jbc,icd,jda->", r, r_dg, r, r_dg)
-    )  # two pairs of indexes are the same
+        )  # two pairs of indexes are the same
+        for i in range(m):
+            sum11+=contract("ab,jbc,cd,jda->", r[i], r_dg, r[i], r_dg)
+
     sum1 = (
         contract("iab,ibc,jcd,kda->", r, r_dg, r, r_dg)
         + contract("iab,jbc,icd,kda->", r, r_dg, r, r_dg)

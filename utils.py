@@ -183,7 +183,7 @@ def shadow_estimator(rho, device, scheme, m, qU):
 
 def gen_u(n, qU):
     while True:
-        qU.put(th.tensor(random_clifford(n).to_matrix(), dtype=th.cfloat))
+        qU.put(random_clifford(n).to_matrix())
 
 
 def get_u(n, qU, num):
@@ -197,16 +197,16 @@ def get_u(n, qU, num):
         if has_activate[n]:
             U_lst = th.empty(num, 2 ** n, 2 ** n, dtype=th.cfloat)
             for i in range(num):
-                U_lst[i] = qU[n].get()
+                U_lst[i] = th.tensor(qU[n].get(), dtype=th.cfloat)
         else:
             has_activate[n] = 1
-            for i in range(30):
+            for i in range(15):
                 proc = mp.Process(target=gen_u, args=(n, qU[n]))  # Must assign n
                 proc_lst.append(proc)
                 proc.start()
             U_lst = th.empty(num, 2 ** n, 2 ** n, dtype=th.cfloat)
             for i in range(num):
-                U_lst[i] = qU[n].get()
+                U_lst[i] = th.tensor(qU[n].get(), dtype=th.cfloat)
     return U_lst
 
 
@@ -233,6 +233,17 @@ def draw(y, x):
     print(leastsq(error, p0, args=(x_log, y_log)))
     plt.scatter(x_log, y_log)
     plt.plot(x_log, y_log, label=" ")
+    plt.xlabel(" ")
+    plt.ylabel(" ")
+    plt.legend()
+    plt.savefig("test.png")
+def draw_n(y, x):
+    y_log = np.asarray([math.log(var, 2) for var in y])
+    plt.figure()
+    p0 = [1, 1]
+    print(leastsq(error, p0, args=(x, y_log)))
+    plt.scatter(x, y_log)
+    plt.plot(x, y_log, label=" ")
     plt.xlabel(" ")
     plt.ylabel(" ")
     plt.legend()
