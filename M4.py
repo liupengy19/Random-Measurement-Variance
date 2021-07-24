@@ -5,28 +5,29 @@ def shadow_m4_estimation(rho_hat_lst, na):
     r = th.stack([realignment(rho_hat, na) for rho_hat in rho_hat_lst])
     r_dg = th.conj(contract("ijk->ikj", r))
     m = len(rho_hat_lst)
-    res = contract("iab,jbc,kcd,lda->ijkl", r, r_dg, r, r_dg).type(
-        th.cdouble
+    sum0 = contract(
+        "iab,jbc,kcd,lda->", r, r_dg, r, r_dg
     )  # use inclusion–exclusion principle to eliminate expressions like if(i==j)
-    sum0 = contract("ijkl->", res)  # summation
     sum11 = (
-        contract("aabb", res) + contract("abab", res) + contract("abba", res)
+        contract("iab,ibc,jcd,jda->", r, r_dg, r, r_dg)
+        + contract("iab,jbc,jcd,ida->", r, r_dg, r, r_dg)
+        + contract("iab,jbc,icd,jda->", r, r_dg, r, r_dg)
     )  # two pairs of indexes are the same
     sum1 = (
-        contract("aabc->", res)
-        + contract("abac->", res)
-        + contract("abca->", res)
-        + contract("baac->", res)
-        + contract("baca->", res)
-        + contract("cbaa->", res)
+        contract("iab,ibc,jcd,kda->", r, r_dg, r, r_dg)
+        + contract("iab,jbc,icd,kda->", r, r_dg, r, r_dg)
+        + contract("iab,jbc,kcd,ida->", r, r_dg, r, r_dg)
+        + contract("jab,ibc,icd,kda->", r, r_dg, r, r_dg)
+        + contract("jab,ibc,kcd,ida->", r, r_dg, r, r_dg)
+        + contract("jab,kbc,icd,ida->", r, r_dg, r, r_dg)
     )  # one pair
     sum2 = (
-        contract("aaab->", res)
-        + contract("aaba->", res)
-        + contract("abaa->", res)
-        + contract("baaa->", res)
+        contract("iab,ibc,icd,jda->", r, r_dg, r, r_dg)
+        + contract("iab,ibc,jcd,ida->", r, r_dg, r, r_dg)
+        + contract("iab,jbc,icd,ida->", r, r_dg, r, r_dg)
+        + contract("jab,ibc,icd,ida->", r, r_dg, r, r_dg)
     )  # a triple are the same
-    sum3 = contract("aaaa", res)  # all four
+    sum3 = contract("iab,ibc,icd,ida->", r, r_dg, r, r_dg)  # all four
     res_sum = sum0 - sum1 + 2 * sum2 - 6 * sum3 + sum11
     return float(res_sum.real / (m * (m - 1) * (m - 2) * (m - 3)))
 
