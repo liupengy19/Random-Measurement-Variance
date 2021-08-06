@@ -61,7 +61,7 @@ def run_lr_W4_Nu2_M5_Na2_1024():
     draw_n(reslist, range(17))
 
 
-def run_gr_W4_Nu2_M5_Na2_1024():
+def run_gr_W4_Nu2_M5_Na2_1024():#!
     reslist = np.zeros(17)
     for i in range(17):
         reslist[i] += random_m4_variance(
@@ -70,7 +70,7 @@ def run_gr_W4_Nu2_M5_Na2_1024():
             NuA=2,
             NuB=2,
             Nm=5,
-            N_iid=200,
+            N_iid=200,#! 2000
             device=device,
             scheme="g",
             qU=qU,
@@ -81,7 +81,7 @@ def run_gr_W4_Nu2_M5_Na2_1024():
 
 
 #! plot4
-def run_gr_W4_Nu2_M1_512_inf_Na10():
+def run_gr_W4_Nu2_M1_512_inf_Na10():#20000
     reslist = np.zeros(18)
     for i in range(17):
         reslist[i] += random_m4_variance(
@@ -247,23 +247,24 @@ def run_gr_W2_10_Nu2_M4_Na5():
     draw_n(reslist, range(9))
 
 
-def run_ls_W2_10_M80_Na1():
+def run_ls_W2_10_M80_Na1():#!FIX
     reslist = np.zeros(9)
-    for time in range(20):
+    for time in range(200):
         print(time)
         for n in range(2, 11):
             reslist[n - 2] += (
                 shadow_m4_variance(
                     noisy_W(n, 0),
                     na=n // 2,
-                    m=4,
+                    m=80,
                     N_iid=1,
                     device=device,
                     scheme="l",
                     qU=qU,
                 )
-                / 20
+                / 200
             )
+    print(reslist)
     np.save("./output/ls_W2_10_M80_Na1_iid20", reslist)
     draw_n(reslist, range(9))
 
@@ -323,5 +324,5 @@ def run_ls_W4_M4_256_Na1():
 
 
 if __name__ == "__main__":
-    run_gr_W4_Nu2_M5_Na2_1024()
+    run_ls_W2_10_M80_Na1()
     terminate()

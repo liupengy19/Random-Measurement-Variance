@@ -162,9 +162,10 @@ def shadow_estimator(rho, device, scheme, m, qU):
             "oba,obc,ocd->oad", th.conj(U_lst_local[0]), meas_lst0, U_lst_local[0]
         ) - th.eye(2, dtype=th.cfloat).to(device)
         for i in range(1, qubit_num):
+            result=result//2
             meas_lsti = (
                 th.sparse_coo_tensor(
-                    th.stack([meas_range, (result >> i) % 2, (result >> i) % 2]),
+                    th.stack([meas_range, result  % 2, result % 2]),
                     ones_range,
                     (m, 2, 2),
                 )
