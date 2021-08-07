@@ -74,7 +74,7 @@ def run_ls_W2_10_M80_Na1():
 
 def run_gs_W2_10_M80_Na1():#TODO
     reslist = np.zeros(9)
-    for time in range(20):
+    for time in range(200):
         print(time)
         for n in range(2, 11):
             reslist[n - 2] += (
@@ -87,7 +87,7 @@ def run_gs_W2_10_M80_Na1():#TODO
                     scheme="g",
                     qU=qU,
                 )
-                / 20
+                / 200
             )
     np.save("./output/gs_W2_10_M80_Na1_iid200", reslist)
     draw_n(reslist, range(9))
