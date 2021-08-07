@@ -426,5 +426,5 @@ def run_lr_W4_Nu2_M4_1024_inf_Na40():
     draw_n(reslist, range(18))
 
 if __name__ == "__main__":
-    run_gs_W2_10_M80_Na1()
+    run_gr_W2_10_Nu2_M4_Na5()
     terminate()
