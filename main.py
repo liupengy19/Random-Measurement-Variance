@@ -424,7 +424,44 @@ def run_lr_W4_Nu2_M4_1024_inf_Na40():
         )/10
     np.save("./output/lr_W4_Nu2_M4_1024_inf_Na40_iid20000", reslist)
     draw_n(reslist, range(18))
-
+def run_lr_W2_10_Nu2_Minf_Na20():
+    reslist = np.zeros(9)
+    for times in range(1000):
+        print(times)
+        for n in range(2, 11):
+            reslist[n - 2] += random_m4_variance(
+                noisy_W(n, 0),
+                na=n // 2,
+                NuA=2,
+                NuB=2,
+                Nm=-1,
+                N_iid=2,
+                device=device,
+                scheme="l",
+                qU=qU,
+                N_average=20,
+            )/1000
+    np.save("./output/lr_W2_10_Nu2_Minf_Na20_iid2000", reslist)
+    draw_n(reslist, range(9))
+def run_gr_W2_10_Nu2_Minf_Na20():
+    reslist = np.zeros(9)
+    for times in range(1000):
+        print(times)
+        for n in range(2, 11):
+            reslist[n - 2] += random_m4_variance(
+                noisy_W(n, 0),
+                na=n // 2,
+                NuA=2,
+                NuB=2,
+                Nm=-1,
+                N_iid=2,
+                device=device,
+                scheme="g",
+                qU=qU,
+                N_average=20,
+            )/1000
+    np.save("./output/gr_W2_10_Nu2_Minf_Na20_iid2000", reslist)
+    draw_n(reslist, range(9))
 if __name__ == "__main__":
-    run_gr_W2_10_Nu2_M4_Na5()
+    run_gr_W2_10_Nu2_Minf_Na20()
     terminate()
