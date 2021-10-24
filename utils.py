@@ -249,3 +249,14 @@ def draw_n(y, x):
     plt.ylabel(" ")
     plt.legend()
     plt.savefig("test.png")
+def draw_nolog(y, x):
+    y_log = np.asarray(y)
+    plt.figure()
+    p0 = [1, 1]
+    print(leastsq(error, p0, args=(x, y_log)))
+    plt.scatter(x, y_log)
+    plt.plot(x, y_log, label=" ")
+    plt.xlabel(" ")
+    plt.ylabel(" ")
+    plt.legend()
+    plt.savefig("test.png")

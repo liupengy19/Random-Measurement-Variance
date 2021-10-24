@@ -462,6 +462,70 @@ def run_gr_W2_10_Nu2_Minf_Na20():
             )/1000
     np.save("./output/gr_W2_10_Nu2_Minf_Na20_iid2000", reslist)
     draw_n(reslist, range(9))
+    
+def run_lr_W4_p0_1_Minf():
+    reslist = np.zeros(10)
+    for p in range(10):
+            reslist[p] += random_m4_estimation(
+                rho=noisy_W(4, float(p)/10).to(device),
+                na=2,
+                NuA=2,
+                NuB=2,
+                Nm=-1,
+                N_iid=1,
+                device=device,
+                scheme="l",
+                qU=qU,
+                N_average=100,
+            ).sum()
+    np.save("./output_new/lr_W4_p0_1_M", reslist)
+    draw_nolog(reslist, range(10))
+    
+def run_lr_W4_p0_1_M10():
+    reslist = np.zeros(10)
+    for p in range(10):
+            reslist[p] += random_m4_estimation(
+                rho=noisy_W(4, float(p)/10).to(device),
+                na=2,
+                NuA=2,
+                NuB=2,
+                Nm=10,
+                N_iid=1,
+                device=device,
+                scheme="l",
+                qU=qU,
+                N_average=100,
+            ).sum()
+    np.save("./output_new/lr_W4_p0_1_M10", reslist)
+    draw_nolog(reslist, range(10))
+    
+def run_lr_W4_p0_1_M20():
+    reslist = np.zeros(10)
+    for p in range(10):
+            reslist[p] += random_m4_estimation(
+                rho=noisy_W(4, float(p)/10).to(device),
+                na=2,
+                NuA=2,
+                NuB=2,
+                Nm=20,
+                N_iid=1,
+                device=device,
+                scheme="l",
+                qU=qU,
+                N_average=100,
+            ).sum()
+    np.save("./output_new/lr_W4_p0_1_M20", reslist)
+    draw_nolog(reslist, range(10))
+    
+def run_exact_W4_p0_1():
+    reslist = np.zeros(10)
+    for p in range(10):
+        rho=noisy_W(4, float(p)/10).to(device)
+        na=2
+        r = realignment(rho, na)
+        reslist[p]+= th.trace(th.mm(th.mm(r, th.conj(r).T), th.mm(r, th.conj(r).T)))
+    np.save("./output_new/exact_W4_p0_1", reslist)
+    draw_nolog(reslist, range(10))
 if __name__ == "__main__":
-    run_gr_W2_10_Nu2_Minf_Na20()
+    run_lr_W4_p0_1_Minf()
     terminate()
